@@ -17,7 +17,7 @@ const api = async (p) => (await fetch(base + p)).json();
 const failures = [];
 const canSee = process.platform === 'win32'; // screen capture only works on a real desktop
 const expect = (label, cond, detail = '') => {
-  if (!canSee && /hold|on top|still image/.test(label)) { console.log(`SKIP  ${label} (no screen capture here)`); return; } console.log(`${cond ? 'PASS' : 'FAIL'}  ${label} ${detail}`); if (!cond) failures.push(label); };
+  if (!canSee && /hold colour|on top|still image|returned to hold|back on hold/.test(label)) { console.log(`SKIP  ${label} (no screen capture here)`); return; } console.log(`${cond ? 'PASS' : 'FAIL'}  ${label} ${detail}`); if (!cond) failures.push(label); };
 const near = (a, b, tol = 40) => a && b && a.every((v, i) => Math.abs(v - b[i]) <= tol);
 const live = async () => { const s = await api('state'); return s.cue.live || {}; };
 
