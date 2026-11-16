@@ -6,11 +6,10 @@ export function Monitor() {
   const a = S.app, m = S.rt.meters || {};
   const master = S.doc.settings.masterDb || 0;
   return html`<div class="monitor">
-    <div class="preview">
-      ${a.outputMode === 'live' && S.preview && a.settings.livePreview ? html`<img src=${'data:image/jpeg;base64,' + S.preview} />`
-        : html`<div class="preview-msg">${a.rehearsal ? 'REHEARSAL — output is in the small preview window (bottom right of this screen)' : a.outputMode !== 'live' ? 'No separate output display — output is in the small preview window' : 'Live preview off'}</div>`}
-      <span class=${'out-badge ' + (a.outputMode === 'live' ? 'live' : 'off')}>${a.outputMode === 'live' ? 'OUTPUT LIVE' : 'PREVIEW ONLY'}</span>
+    <div class="preview" id="preview-box">
+      ${a.outputMode === 'live' && (S.preview && a.settings.livePreview ? html`<img src=${'data:image/jpeg;base64,' + S.preview} />` : html`<div class="preview-msg">Live preview off</div>`)}
     </div>
+    <div class=${'out-line ' + (a.outputMode === 'live' ? 'live' : 'off')}>${a.outputMode === 'live' ? '● OUTPUT LIVE on the presentation display' : a.rehearsal ? 'REHEARSAL — picture shown here only, nothing on the presentation screen' : 'PREVIEW ONLY — no separate output display connected'}</div>
     <div class="meters">
       ${[['Video', m.video], ['Audio', m.audio]].map(([label, v]) => html`<div class="meter"><span>${label}</span><div class="bar"><div class=${'fill' + (v > -3 ? ' hot' : v > -12 ? ' warm' : '')} style=${`width:${dbPct(v ?? -90)}%`}></div></div></div>`)}
       <div class="meter"><span>Master</span><input type="range" min="-60" max="6" step="0.5" value=${master} onInput=${(e) => cmd('settings.show', { patch: { masterDb: parseFloat(e.target.value) } })} onDblClick=${() => cmd('settings.show', { patch: { masterDb: 0 } })} title="Double-click to reset to 0 dB" /><span class="db">${master > 0 ? '+' : ''}${master} dB</span></div>

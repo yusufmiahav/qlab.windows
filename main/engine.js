@@ -176,12 +176,7 @@ class Engine extends EventEmitter {
       const g = run.parentRun;
       if (g && !g.dead) {
         g.live.delete(run.id);
-        if (g.cue.mode === 'sequence' && run.cue.continue === 'none') {
-          const kids = g.cue.children, i = kids.findIndex((k) => k.id === run.id);
-          const live = i >= 0 && this.store.cue(g.id);
-          const next = live && live.children[i + 1];
-          if (next) this.fire(next, {});
-        }
+        this.sequenceNext(run);
         if (g.live.size === 0) this.finish(g, 'ended');
       }
     } else if (run.parentRun && !run.parentRun.dead) {
@@ -190,6 +185,17 @@ class Engine extends EventEmitter {
     }
     this.changed();
     this.schedulePreload();
+  }
+
+  // In a "fire first, then auto-advance" group, move on to the next child (once per child).
+  sequenceNext(run) {
+    const g = run.parentRun;
+    if (!g || g.dead || g.cue.mode !== 'sequence' || run.cue.continue !== 'none' || run.sequenced) return;
+    run.sequenced = true;
+    const live = this.store.cue(g.id);
+    const i = live ? live.children.findIndex((k) => k.id === run.id) : -1;
+    const next = i >= 0 && live.children[i + 1];
+    if (next) this.fire(next, {});
   }
 
   releaseMedia(run) {
@@ -340,7 +346,7 @@ class Engine extends EventEmitter {
     run.state = 'holding';
     this.changed();
     if (mode === 'advance') { if (!run.advanced) { run.advanced = true; this.fireNext(run); } }
-    else this.follow(run);
+    else { this.follow(run); this.sequenceNext(run); }
   }
 
   alphaEnded(id) {
@@ -633,7 +639,7 @@ class Engine extends EventEmitter {
     for (const [k, label] of [['videoAudioDevice', 'Video audio device'], ['audioCueDevice', 'Audio cue device']]) {
       if (s[k] && !devices.has(s[k])) add('warn', null, `${label} "${s[k]}" is not connected – the system default will be used`);
     }
-    if (this.output.mode !== 'live') add('warn', null, this.output.rehearsal ? 'Rehearsal mode is ON – nothing is sent to the presentation screen' : 'No separate output display detected – output is in the preview window');
+    if (this.output.mode !== 'live') add('warn', null, this.output.rehearsal ? 'Rehearsal mode is ON – nothing is sent to the presentation screen' : 'No separate output display detected – the picture is only shown in the console preview');
     if (this.output.mpvError) add('error', null, `Video engine problem: ${this.output.mpvError}`);
     walk(this.doc.cues, (c) => {
       if (c.number) { if (numbers.has(c.number)) add('warn', c, `Duplicate cue number ${c.number}`); numbers.set(c.number, c); }

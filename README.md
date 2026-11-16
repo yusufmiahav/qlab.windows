@@ -60,9 +60,9 @@ portable exe to `dist/`. `npm test` runs the unit tests.
 
 Plug in the projector/LED processor as an extended display. CueStage puts the output fullscreen on the
 first non-primary display automatically; choose another one in **Settings → Output display**. The
-status badge on the preview shows **OUTPUT LIVE**. With only one display connected (or in
-**Rehearsal** mode) the output appears in a small preview window on the operator screen instead, and
-nothing reaches the audience.
+line under the preview shows **OUTPUT LIVE**. With only one display connected (or in
+**Rehearsal** mode) the picture appears inside the console's preview box instead, and nothing reaches
+the audience – handy for building a show on a laptop. A display plugged in later is picked up automatically.
 
 Pick the holding colour or image (what the audience sees when nothing is playing) in **Settings**.
 
@@ -133,7 +133,7 @@ OSC and scripts are in [docs/API.md](docs/API.md) and [docs/COMPANION.md](docs/C
 ### 6. Before doors
 
 * **Check show** – finds missing media, broken fade/stop targets, disconnected audio devices, duplicate numbers.
-* **Rehearsal** – run everything without sending to the presentation screen.
+* **Rehearsal** – run everything without sending pictures to the presentation screen (audio still plays).
 * **Lock** (Ctrl+L) – blocks editing so nothing can be changed by accident; running the show still works.
 * **File → Collect show** – copies the show file and all media into one folder for another machine.
 

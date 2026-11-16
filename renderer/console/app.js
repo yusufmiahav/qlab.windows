@@ -275,7 +275,16 @@ function App() {
     ${S.toast && html`<div class=${'toast ' + S.toast.kind}>${S.toast.text}</div>`}`;
 }
 
-setRender(() => render(html`<${App} />`, document.getElementById('root')));
+// Tell main where the preview box is, so the output stack can sit exactly over it when there is no
+// separate output display (or in rehearsal). null hides it, e.g. while a dialog is open.
+function reportPreviewRect() {
+  const el = document.getElementById('preview-box');
+  let rect = null;
+  if (el && !S.modal && S.app.outputMode !== 'live') { const r = el.getBoundingClientRect(); rect = { x: r.left + 1, y: r.top + 1, width: r.width - 2, height: r.height - 2 }; }
+  cs.send('preview-rect', rect);
+}
+setRender(() => { render(html`<${App} />`, document.getElementById('root')); reportPreviewRect(); });
+window.addEventListener('resize', reportPreviewRect);
 
 cs.on('doc', (d) => {
   const first = !S.doc;

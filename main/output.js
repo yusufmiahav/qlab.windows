@@ -93,25 +93,46 @@ class Output extends EventEmitter {
     if (this.rehearsal) return 'preview';
     const t = this.target();
     if (!t) return 'preview';
-    if (t.id === this.consoleDisplayId && screen.getAllDisplays().length === 1) return 'preview';
+    // Never cover the operator console: if the chosen output is the screen the console is on, stay in preview.
+    const con = this.consoleWin && !this.consoleWin.isDestroyed() ? screen.getDisplayMatching(this.consoleWin.getBounds()).id : this.consoleDisplayId;
+    if (t.id === con) return 'preview';
     return 'live';
   }
   setDisplay(id) { this.displayId = id; this.applyBounds(); this.emit('displays'); }
   setRehearsal(on) { this.rehearsal = !!on; this.applyBounds(); this.emit('displays'); }
   windows() { return [this.stage, ...this.layers.map((l) => l.win), this.overlay]; }
+  // In preview mode the stack sits exactly over the console's preview box (rect reported by the console page).
+  setPreviewRect(rect) {
+    const key = JSON.stringify(rect);
+    if (key === this.previewKey) return;
+    this.previewKey = key;
+    this.previewRect = rect;
+    if (this.mode === 'preview') this.applyBounds();
+  }
   applyBounds() {
     if (!this.stage) return;
-    let bounds;
-    if (this.mode === 'live') bounds = this.target().bounds;
-    else {
-      const wa = screen.getPrimaryDisplay().workArea;
-      const w = 480, h = 270;
-      bounds = { x: wa.x + wa.width - w - 16, y: wa.y + wa.height - h - 16, width: w, height: h };
+    const live = this.mode === 'live';
+    const con = this.consoleWin && !this.consoleWin.isDestroyed() ? this.consoleWin : null;
+    if (live !== this.wasLive) {
+      this.wasLive = live;
+      for (const w of this.windows()) {
+        // Live: independent always-on-top windows on the output display.
+        // Preview: owned by the console so they never float over other applications.
+        if (live) { w.setParentWindow(null); w.setAlwaysOnTop(true, 'screen-saver'); }
+        else { w.setAlwaysOnTop(false); if (con) w.setParentWindow(con); }
+      }
     }
+    let bounds = null;
+    if (live) bounds = this.target().bounds;
+    else if (con && this.previewRect && !con.isMinimized()) {
+      const c = con.getContentBounds(), r = this.previewRect;
+      bounds = { x: Math.round(c.x + r.x), y: Math.round(c.y + r.y), width: Math.max(16, Math.round(r.width)), height: Math.max(9, Math.round(r.height)) };
+    }
+    if (!bounds) { this.bounds = null; for (const w of this.windows()) if (w.isVisible()) w.hide(); return; }
     this.bounds = bounds;
     for (const w of this.windows()) {
       w.setBounds(bounds);
-      w.setBounds(bounds); // twice: works around mixed-DPI placement glitches on Windows
+      if (live) w.setBounds(bounds); // twice: works around mixed-DPI placement glitches on Windows
       if (!w.isVisible()) w.showInactive();
     }
     this.restack();

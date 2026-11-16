@@ -105,6 +105,7 @@ function publicState() {
 async function debugInfo() {
   let pixel = null, pixelError = null;
   try {
+      if (!output.bounds) return { mode: output.mode, error: 'output has no bounds yet (console preview box not reported)' };
     const disp = screen.getDisplayMatching(output.bounds);
     const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: disp.size });
     const src = sources.find((s) => String(s.display_id) === String(disp.id)) || sources[0];
@@ -152,7 +153,7 @@ function run(name, args = {}, source = 'ui') {
   } catch (e) {
     log.add('error', `${name}: ${e.message}`, source);
     return false;
-  } finally { engine.source = 'ui'; }
+  } finally { engine.source = 'ui'; log.source = 'ui'; }
 }
 
 // ---------- media probing (durations for the cue list) ----------
@@ -213,6 +214,7 @@ function createConsole() {
   consoleWin.webContents.on('before-input-event', (e, input) => {
     if (input.type === 'keyDown' && input.key === 'F12') consoleWin.webContents.toggleDevTools();
   });
+  for (const ev of ['move', 'resize', 'maximize', 'unmaximize', 'restore', 'minimize']) consoleWin.on(ev, () => { if (output && output.stage && output.mode === 'preview') output.applyBounds(); });
   consoleWin.on('close', (e) => {
     if (quitting) return;
     e.preventDefault();
@@ -377,6 +379,7 @@ app.whenReady().then(async () => {
     if (ui[name]) return ui[name](args || {});
     return run(name, args || {}, 'ui');
   });
+  ipcMain.on('preview-rect', (e, rect) => output.setPreviewRect(rect));
   ipcMain.on('curtain-ready', (e, seq) => output.curtainReady(seq));
   ipcMain.on('alpha-ended', (e, id) => engine.alphaEnded(id));
   ipcMain.on('console-ready', () => { pushDoc(); pushApp(); pushRt(); send('log', { all: log.entries.slice(-500) }); });
@@ -384,6 +387,7 @@ app.whenReady().then(async () => {
   output.displayId = appSettings.outputDisplayId;
   output.consoleDisplayId = screen.getPrimaryDisplay().id;
   createConsole();
+  output.consoleWin = consoleWin;
   await output.init();
   await audio.init();
 
@@ -406,7 +410,7 @@ app.whenReady().then(async () => {
   timers.on('change', () => { output.setTimerState(timers.snapshot()); pushRt(); web.broadcast(); });
   log.on('entry', (e) => send('log', { entry: e }));
   log.on('cleared', () => send('log', { all: [] }));
-  output.on('displays', () => { audio.refreshDevices().then(pushApp); log.add('system', `Displays changed – output is ${output.mode === 'live' ? 'LIVE on ' + output.target().label : 'in preview window'}`); });
+  output.on('displays', () => { audio.refreshDevices().then(pushApp); log.add('system', `Displays changed – output is ${output.mode === 'live' ? 'LIVE on display ' + output.displays().find((d) => d.id === output.target().id).label : 'in the console preview only'}`); });
 
   setInterval(() => { timers.tick(); output.setTimerState(timers.snapshot()); }, 250);
   setInterval(pushRt, 100);
@@ -427,6 +431,8 @@ app.whenReady().then(async () => {
   }, 700);
 
   if (process.env.CUESTAGE_DEBUG) web.debug = debugInfo;
+  // Pick up audio devices that are plugged in or removed while the app is running.
+  setInterval(async () => { const before = JSON.stringify(audio.deviceList); await audio.refreshDevices(); if (JSON.stringify(audio.deviceList) !== before) { log.add('system', 'Audio devices changed'); pushApp(); } }, 10000);
   web.listen(appSettings.httpPort);
   osc.listen(appSettings.oscPort);
   log.add('system', `CueStage ${app.getVersion()} started`);
@@ -443,7 +449,6 @@ app.on('second-instance', (e, argv) => {
 });
 app.on('before-quit', () => {
   quitting = true;
-  try { store.autosave(); } catch {}
   try { output.quit(); audio.quit(); prober.mpv.quit(); web.close(); osc.close(); } catch {}
 });
 app.on('window-all-closed', () => app.quit());
