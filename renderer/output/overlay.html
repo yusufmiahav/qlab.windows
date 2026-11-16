@@ -1,0 +1,99 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="output.css">
+</head>
+<body class="overlay">
+  <video id="alpha"></video>
+  <div id="curtain">
+    <div class="visual" id="mirror"><div class="fill hold"></div><div class="fill va"></div><div class="fill vb"></div></div>
+    <div class="fill snap" id="snap"></div>
+  </div>
+  <div id="timer"><div class="label"></div><div class="digits"></div></div>
+  <div id="message"><span></span></div>
+  <script src="visual.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const curtain = $('curtain'), snap = $('snap'), mirror = $('mirror'), alpha = $('alpha');
+    const updateMirror = createVisual(mirror);
+    let curtainSeq = 0, alphaKey = null, cfg = null, timer = null, timerAt = 0;
+
+    async function applyCurtain(c) {
+      if (!c) { curtain.style.display = 'none'; curtain.style.transition = 'none'; curtain.style.opacity = 0; curtainSeq = 0; return; }
+      if (c.seq !== curtainSeq) {
+        curtainSeq = c.seq;
+        curtain.style.transition = 'none';
+        if (c.url) {
+          await preloadImage(c.url);
+          snap.style.backgroundImage = `url("${c.url}")`; snap.style.display = 'block'; mirror.style.display = 'none';
+        } else {
+          snap.style.display = 'none'; mirror.style.display = 'block';
+          await updateMirror({ hold: c.stage.hold, visual: null, fadeMs: 0 });
+          await updateMirror({ hold: c.stage.hold, visual: c.stage.visual, fadeMs: 0 });
+        }
+        if (c.seq !== curtainSeq) return;
+        curtain.style.opacity = c.opacity;
+        curtain.style.display = 'block';
+        // two frames so the curtain is really on screen before main restacks the windows
+        requestAnimationFrame(() => requestAnimationFrame(() => window.cs.send('curtain-ready', c.seq)));
+      } else {
+        curtain.style.transition = `opacity ${c.ms}ms linear`;
+        void curtain.offsetWidth;
+        curtain.style.opacity = c.opacity;
+      }
+    }
+
+    function applyAlpha(a) {
+      if (!a) { alphaKey = null; alpha.pause(); alpha.removeAttribute('src'); alpha.load(); alpha.style.display = 'none'; return; }
+      if (a.key === alphaKey) return;
+      alphaKey = a.key;
+      alpha.src = a.url; alpha.loop = !!a.loop; alpha.volume = a.volume;
+      alpha.style.display = 'block';
+      alpha.onended = () => window.cs.send('alpha-ended', a.id);
+      alpha.onerror = () => window.cs.send('alpha-ended', a.id);
+      alpha.play().catch(() => window.cs.send('alpha-ended', a.id));
+    }
+
+    function fmt(ms) {
+      const neg = ms < 0, s = neg ? Math.floor(-ms / 1000) : Math.ceil(ms / 1000);
+      const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60, p = (n) => String(n).padStart(2, '0');
+      return (neg && s > 0 ? '-' : '') + (h > 0 ? `${h}:${p(m)}:${p(x)}` : `${m}:${p(x)}`);
+    }
+    function drawTimer() {
+      const el = $('timer'), msg = $('message');
+      const on = cfg && cfg.enabled && timer && !timer.blackout;
+      const cur = timer && timer.current;
+      const full = on && cfg.mode === 'fullscreen';
+      el.style.display = on && (cur || full) ? (full ? 'flex' : 'block') : 'none';
+      if (on) {
+        let colour = cur ? cur.colour : 'idle', text = cur ? cur.display : '';
+        if (cur && timer.running && cur.remainingMs !== null && cur.mode !== 'clock') {
+          const dt = Date.now() - timerAt;
+          let rem = cur.remainingMs - dt;
+          if (cur.mode === 'countup') text = fmt(cur.elapsedMs + dt);
+          else { if (rem < 0 && !cur.overrun) rem = 0; text = fmt(rem); }
+        } else if (cur && cur.mode === 'clock') {
+          const d = new Date(), p = (n) => String(n).padStart(2, '0');
+          text = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+        }
+        el.className = `${full ? 'fullscreen' : 'overlay pos-' + cfg.position} ${colour} ${cur && cur.flash ? 'flash' : ''}`;
+        el.style.fontSize = full ? '22vh' : `${cfg.size}vh`;
+        el.style.opacity = full ? 1 : cfg.opacity;
+        el.querySelector('.digits').textContent = text;
+        const label = el.querySelector('.label');
+        label.textContent = cur && cfg.showLabel ? (cur.speaker ? `${cur.title} – ${cur.speaker}` : cur.title) : '';
+        label.style.display = label.textContent ? 'block' : 'none';
+      }
+      const m = timer && timer.message;
+      const showMsg = on && m && m.text;
+      msg.style.display = showMsg ? 'block' : 'none';
+      if (showMsg) { msg.className = `${m.bold ? 'bold' : ''} ${m.flash ? 'flash' : ''} ${full ? 'full' : ''}`; msg.querySelector('span').textContent = m.text; }
+    }
+
+    window.cs.on('overlay', (s) => { applyCurtain(s.curtain); applyAlpha(s.alpha); cfg = s.timerOverlay; if (s.timer && !timer) { timer = s.timer; timerAt = Date.now(); } drawTimer(); });
+    window.cs.on('timer', (t) => { timer = t; timerAt = Date.now(); drawTimer(); });
+    setInterval(drawTimer, 100);
+  </script>
+</body>
+</html>

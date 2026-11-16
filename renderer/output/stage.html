@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="output.css">
+</head>
+<body class="stage">
+  <div id="root" class="visual"><div class="fill hold"></div><div class="fill va"></div><div class="fill vb"></div></div>
+  <script src="visual.js"></script>
+  <script>
+    const update = createVisual(document.getElementById('root'));
+    window.cs.on('stage', (s) => update(s));
+  </script>
+</body>
+</html>
