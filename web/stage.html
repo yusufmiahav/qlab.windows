@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<title>CueStage – Stage timer</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { overflow: hidden; background: #000; cursor: none; user-select: none; }
+  #wrap { position: fixed; inset: 0; display: grid; grid-template-rows: auto 1fr auto; padding: 2.5vh 3vw; transition: background .4s; }
+  #wrap.bg-red { background: #2a0606; } #wrap.bg-over { background: #3a0505; } #wrap.bg-amber { background: #1f1700; }
+  #top { display: flex; justify-content: space-between; align-items: baseline; gap: 3vw; font-size: 4.2vh; }
+  #title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } #title small { font-weight: 400; opacity: .7; font-size: .8em; }
+  #clock { font-variant-numeric: tabular-nums; opacity: .75; white-space: nowrap; }
+  #mid { display: flex; align-items: center; justify-content: center; min-height: 0; }
+  #digits { font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.02em; white-space: nowrap; font-size: 30vw; }
+  #digits.long { font-size: 21vw; }
+  #bottom { display: flex; justify-content: space-between; gap: 3vw; font-size: 3.4vh; opacity: .8; min-height: 4.5vh; }
+  #next { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #msg { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; color: #000; text-align: center; font-size: 11vh; padding: 2vh 3vw; display: none; line-height: 1.1; word-break: break-word; }
+  #msg.bold { font-weight: 900; } #msg.on { display: block; }
+  #black { position: fixed; inset: 0; background: #000; display: none; z-index: 10; }
+  .has-msg #digits { font-size: 22vw; } .has-msg #mid { padding-bottom: 16vh; }
+  @media (orientation: portrait) { #digits { font-size: 27vw; } #msg { font-size: 6vh; } }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="top"><div id="title"></div><div id="clock"></div></div>
+  <div id="mid"><div id="digits">--:--</div></div>
+  <div id="bottom"><div id="next"></div><div id="state"></div></div>
+</div>
+<div id="msg"></div>
+<div id="black"></div>
+<script src="/common.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  function draw() {
+    const s = CS.state;
+    if (!s) return;
+    const t = s.timer, cur = t.current, colour = csColour(t);
+    $('black').style.display = t.blackout ? 'block' : 'none';
+    $('title').innerHTML = cur ? csEsc(cur.title) + (cur.speaker ? ` <small>· ${csEsc(cur.speaker)}</small>` : '') : csEsc(s.show.name);
+    $('clock').textContent = csClock(CS.now());
+    const text = cur ? csTimerText(t) : csClock(CS.now(), false);
+    const d = $('digits');
+    d.textContent = text;
+    d.className = `${cur ? colour : 'idle'} ${text.length > 5 ? 'long' : ''} ${cur && colour === 'over' && cur.flashAtZero ? 'flash' : ''}`;
+    $('wrap').className = cur && t.running ? 'bg-' + colour : '';
+    $('next').textContent = t.next ? `Next: ${t.next.title}${t.next.speaker ? ' · ' + t.next.speaker : ''}` : '';
+    $('state').textContent = cur && t.state === 'paused' ? 'PAUSED' : '';
+    const m = t.message, msg = $('msg');
+    msg.textContent = m.text;
+    msg.className = `${m.text ? 'on' : ''} ${m.bold ? 'bold' : ''} ${m.flash ? 'flash' : ''}`;
+    document.body.classList.toggle('has-msg', !!m.text);
+  }
+  CS.on(draw);
+  setInterval(draw, 100);
+  CS.connect();
+  document.addEventListener('click', () => { const el = document.documentElement; if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen().catch(() => {}); });
+  if ('wakeLock' in navigator) { const lock = () => navigator.wakeLock.request('screen').catch(() => {}); lock(); document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && lock()); }
+</script>
+</body>
+</html>

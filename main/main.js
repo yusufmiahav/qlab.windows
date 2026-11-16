@@ -307,10 +307,10 @@ const ui = {
   redo: () => store.redo(),
   lock(a) { store.locked = a.on; log.add('show', `Lock mode ${a.on ? 'ON' : 'OFF'}`); pushDoc(); return true; },
   // timers (editing)
-  'timer.add': (a) => store.addTimer(a.props || {}, a.afterId),
-  'timer.update': (a) => store.updateTimer(a.id, a.patch),
-  'timer.remove': (a) => store.removeTimer(a.id),
-  'timer.move': (a) => store.moveTimer(a.id, a.delta),
+  'timerdef.add': (a) => store.addTimer(a.props || {}, a.afterId),
+  'timerdef.update': (a) => store.updateTimer(a.id, a.patch),
+  'timerdef.remove': (a) => store.removeTimer(a.id),
+  'timerdef.move': (a) => store.moveTimer(a.id, a.delta),
   'settings.show': (a) => store.updateSettings(a.patch),
   'settings.app'(a) {
     const before = { ...appSettings };

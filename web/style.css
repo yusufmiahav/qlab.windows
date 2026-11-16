@@ -1,0 +1,11 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #0b0c0f; color: #e6e8ec; font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif; }
+a { color: #6aa7ff; }
+.offline::after { content: "RECONNECTING…"; position: fixed; top: 0; left: 0; right: 0; background: #d64545; color: #fff; text-align: center; font-weight: 800; padding: 4px; font-size: 14px; z-index: 99; letter-spacing: .1em; }
+.green { color: #4ade80; } .amber { color: #fbbf24; } .red, .over { color: #f87171; } .idle { color: #e6e8ec; }
+@keyframes flash { to { visibility: hidden; } }
+.flash { animation: flash 1s steps(2, start) infinite; }
+button { font: inherit; color: #fff; background: #2a303b; border: 1px solid #3a4150; border-radius: 8px; padding: 14px 10px; font-weight: 700; touch-action: manipulation; }
+button:active { background: #3b82f6; }
+button.go { background: #1d6b3d; border-color: #2a8a52; } button.warn { background: #7a4e10; border-color: #a86a14; } button.danger { background: #7a2424; border-color: #a83232; }
+input[type=text], input[type=password], input[type=tel] { font: inherit; background: #14161a; border: 1px solid #3a4150; border-radius: 8px; color: #fff; padding: 12px; min-width: 0; }
