@@ -1,0 +1,43 @@
+name: Build Windows app
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Unit tests
+        run: npm test
+      - name: Fetch mpv for Windows
+        run: node scripts/fetch-mpv.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build installer and portable exe
+        run: npm run dist
+      - name: Smoke test on Windows (video engine, output stack, API)
+        continue-on-error: true
+        run: node scripts/smoke.mjs dist/win-unpacked/CueStage.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CueStage-Windows
+          path: |
+            dist/*.exe
+          if-no-files-found: error
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.exe

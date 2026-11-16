@@ -1,0 +1,9 @@
+{"format":"cuestage","version":1,"id":"smoke","name":"Smoke test","timers":[{"id":"t1","title":"Keynote","speaker":"Ann","duration":90,"mode":"countdown","amber":60,"red":30}],
+"settings":{"hold":{"type":"colour","colour":"#203060"},"panicFade":0.5},
+"cues":[
+{"id":"c1","type":"video","number":"1","name":"Clip A","file":"media/a.mp4","startMode":"first-frame","endMode":"hold"},
+{"id":"c2","type":"audio","number":"2","name":"Tone","file":"media/tone.wav","continue":"continue"},
+{"id":"c3","type":"video","number":"3","name":"Clip B","file":"media/b.mp4","startMode":"play","endMode":"stop","fadeIn":0.5,"fadeOut":0.5},
+{"id":"c4","type":"image","number":"4","name":"Still","file":"media/still.png","fadeIn":0.3},
+{"id":"c5","type":"playlist","number":"5","name":"Playlist","startMode":"play","transition":"crossfade","transitionTime":0.5,"endMode":"hold","items":[{"id":"i1","file":"media/b.mp4","name":"B","endMode":"continue"},{"id":"i2","file":"media/a.mp4","name":"A","endMode":"continue"}]}
+]}

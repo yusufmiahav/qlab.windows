@@ -101,6 +101,25 @@ function publicState() {
   };
 }
 
+// Diagnostics for the automated smoke test (only served when CUESTAGE_DEBUG is set).
+async function debugInfo() {
+  let pixel = null, pixelError = null;
+  try {
+    const disp = screen.getDisplayMatching(output.bounds);
+    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: disp.size });
+    const src = sources.find((s) => String(s.display_id) === String(disp.id)) || sources[0];
+    const b = output.bounds, size = 60;
+    const img = src.thumbnail.crop({ x: Math.round(b.x - disp.bounds.x + b.width / 2 - size / 2), y: Math.round(b.y - disp.bounds.y + b.height / 3 - size / 2), width: size, height: size });
+    const bmp = img.toBitmap();
+    const sum = [0, 0, 0];
+    for (let i = 0; i < bmp.length; i += 4) { sum[0] += bmp[i + 2]; sum[1] += bmp[i + 1]; sum[2] += bmp[i]; }
+    pixel = sum.map((v) => Math.round(v / (bmp.length / 4)));
+  } catch (e) { pixelError = e.message; }
+  const layers = [];
+  for (const l of output.layers) layers.push({ alive: l.mpv.alive, role: l.role, loaded: l.player.loaded, vo: await l.mpv.get('current-vo'), hwdec: await l.mpv.get('hwdec-current'), size: `${await l.mpv.get('osd-width')}x${await l.mpv.get('osd-height')}` });
+  return { platform: process.platform, mode: output.mode, top: output.top, bounds: output.bounds, displays: output.displays(), layers, audioAlive: audio.voices.filter((v) => v.mpv.alive).length, devices: audio.deviceList.length, mpvError: output.mpvError || audio.error || null, pixel, pixelError };
+}
+
 // ---------- remote/control commands (shared by UI, HTTP, WebSocket and OSC) ----------
 function run(name, args = {}, source = 'ui') {
   engine.source = source;
@@ -407,6 +426,7 @@ app.whenReady().then(async () => {
     } catch {}
   }, 700);
 
+  if (process.env.CUESTAGE_DEBUG) web.debug = debugInfo;
   web.listen(appSettings.httpPort);
   osc.listen(appSettings.oscPort);
   log.add('system', `CueStage ${app.getVersion()} started`);

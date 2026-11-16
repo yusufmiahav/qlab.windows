@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CueStage – Agenda</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { padding: 14px 18px; }
+  header { display: flex; gap: 16px; align-items: stretch; flex-wrap: wrap; margin-bottom: 14px; }
+  .box { background: #1c1f25; border: 1px solid #323844; border-radius: 10px; padding: 10px 18px; min-width: 150px; }
+  .box .l { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #8b93a1; font-weight: 700; }
+  .box .v { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; white-space: nowrap; }
+  .box.wide { flex: 1; min-width: 240px; } .box.wide .v { font-size: 26px; overflow: hidden; text-overflow: ellipsis; }
+  #offbox.behind { border-color: #f87171; background: #2a1719; } #offbox.ahead { border-color: #4ade80; background: #14271c; }
+  table { width: 100%; border-collapse: collapse; font-size: 16px; }
+  th { text-align: left; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #8b93a1; padding: 8px 10px; border-bottom: 2px solid #323844; }
+  td { padding: 10px; border-bottom: 1px solid #22262e; vertical-align: top; } td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.active td { background: #14271c; font-weight: 700; } tr.active td:first-child { box-shadow: inset 5px 0 0 #22a559; } tr.done td { color: #8b93a1; }
+  td small { display: block; color: #8b93a1; font-weight: 400; margin-top: 2px; } .late { color: #f87171; } .early { color: #4ade80; }
+  .msg { background: #4a3a0c; border: 1px solid #d98a1b; border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; display: none; font-size: 18px; }
+  .tablewrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<header>
+  <div class="box wide"><div class="l" id="showname">Show</div><div class="v" id="cur">—</div></div>
+  <div class="box"><div class="l">Timer</div><div class="v" id="digits">--:--</div></div>
+  <div class="box" id="offbox"><div class="l">Schedule</div><div class="v" id="off">—</div></div>
+  <div class="box"><div class="l">Live cue</div><div class="v" id="cue" style="font-size:20px">—</div></div>
+  <div class="box"><div class="l">Time</div><div class="v" id="clock">--:--</div></div>
+</header>
+<div class="msg" id="msg"></div>
+<div class="tablewrap"><table>
+  <thead><tr><th>#</th><th>Item</th><th class="n">Length</th><th class="n">Planned start</th><th class="n">Planned end</th><th class="n">Actual start</th><th class="n">Actual end</th><th class="n">Difference</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table></div>
+<script src="/common.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const diff = (ms) => (Math.abs(ms) < 5000 ? 'on time' : `${ms > 0 ? '+' : '−'}${csFmt(Math.abs(ms))}`);
+  function draw() {
+    const s = CS.state;
+    if (!s) return;
+    const t = s.timer, cur = t.current;
+    $('showname').textContent = s.show.name;
+    $('cur').textContent = cur ? cur.title + (cur.speaker ? ' · ' + cur.speaker : '') : 'No timer running';
+    $('digits').textContent = cur ? csTimerText(t) : '--:--';
+    $('digits').className = 'v ' + (cur ? csColour(t) : '');
+    $('clock').textContent = csClock(CS.now());
+    const off = t.offsetMs;
+    $('off').textContent = off === null ? '—' : Math.abs(off) < 5000 ? 'On time' : `${csFmt(Math.abs(off))} ${off > 0 ? 'behind' : 'ahead'}`;
+    $('offbox').className = 'box ' + (off > 30000 ? 'behind' : off < -30000 ? 'ahead' : '');
+    $('cue').textContent = s.cue.live ? `${s.cue.live.number} ${s.cue.live.name}` : '—';
+    $('msg').style.display = t.message.text ? 'block' : 'none';
+    $('msg').textContent = 'Message on stage: ' + t.message.text;
+    $('rows').innerHTML = t.agenda.map((r, i) => {
+      let d = '';
+      if (r.actualEnd && r.plannedEnd) d = r.actualEnd - r.plannedEnd;
+      else if (r.active && off !== null) d = off;
+      else if (r.actualStart && r.plannedStart && !r.actualEnd) d = r.actualStart - r.plannedStart;
+      return `<tr class="${r.active ? 'active' : r.actualEnd ? 'done' : ''}"><td>${i + 1}</td><td>${csEsc(r.title)}${r.speaker ? `<small>${csEsc(r.speaker)}</small>` : ''}${r.notes ? `<small>${csEsc(r.notes)}</small>` : ''}</td>
+        <td class="n">${r.mode === 'clock' ? 'clock' : r.mode === 'until' ? 'until ' + csEsc(r.endAt) : csDur(r.duration)}</td>
+        <td class="n">${csClock(r.plannedStart, false)}</td><td class="n">${csClock(r.plannedEnd, false)}</td>
+        <td class="n">${csClock(r.actualStart)}</td><td class="n">${r.active && !r.actualEnd && t.state !== 'idle' ? 'in progress' : csClock(r.actualEnd)}</td>
+        <td class="n ${d > 30000 ? 'late' : d < -30000 ? 'early' : ''}">${d === '' ? '' : diff(d)}</td></tr>`;
+    }).join('') || '<tr><td colspan="8">No timers in this show yet.</td></tr>';
+  }
+  CS.on(draw); setInterval(draw, 500); CS.connect();
+</script>
+</body>
+</html>

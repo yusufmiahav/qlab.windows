@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>CueStage – Controller</title>
+<link rel="stylesheet" href="/style.css">
+<style>
+  body { padding: 10px; max-width: 720px; margin: 0 auto; user-select: none; -webkit-user-select: none; }
+  h2 { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #8b93a1; margin: 18px 0 6px; }
+  #disp { background: #000; border: 1px solid #323844; border-radius: 12px; padding: 10px; text-align: center; position: relative; }
+  #title { font-size: 18px; font-weight: 700; } #title small { color: #8b93a1; font-weight: 400; }
+  #digits { font-size: 21vw; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; } @media (min-width: 720px) { #digits { font-size: 150px; } }
+  #meta { display: flex; justify-content: space-between; color: #8b93a1; font-size: 13px; gap: 8px; }
+  .grid { display: grid; gap: 8px; margin-top: 8px; } .g4 { grid-template-columns: repeat(4, 1fr); } .g2 { grid-template-columns: 1fr 1fr; } .g3 { grid-template-columns: repeat(3, 1fr); }
+  .big { padding: 20px 10px; font-size: 20px; }
+  .line { display: flex; gap: 8px; margin-top: 8px; align-items: center; } .line input[type=text], .line input[type=tel] { flex: 1; }
+  label.c { display: flex; align-items: center; gap: 6px; padding: 8px 4px; } label.c input { width: 22px; height: 22px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; } .chips button { padding: 10px 14px; border-radius: 20px; }
+  #onstage { margin-top: 8px; background: #4a3a0c; border: 1px solid #d98a1b; border-radius: 8px; padding: 8px 12px; display: none; }
+  .t { display: grid; grid-template-columns: 26px 1fr auto; gap: 8px; padding: 13px 10px; border-bottom: 1px solid #22262e; border-left: 5px solid transparent; align-items: center; }
+  .t.active { background: #14271c; border-left-color: #22a559; font-weight: 700; } .t small { color: #8b93a1; font-weight: 400; } .t .n { color: #8b93a1; }
+  #list { border: 1px solid #323844; border-radius: 10px; overflow: hidden; }
+  #pinbox { position: fixed; inset: 0; background: #0b0c0f; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; z-index: 50; padding: 20px; }
+  #pinbox input { font-size: 28px; text-align: center; width: 200px; letter-spacing: .3em; }
+  details { margin-top: 18px; border: 1px solid #323844; border-radius: 10px; padding: 8px 12px; } summary { font-weight: 700; padding: 6px 0; }
+  #cueinfo { color: #8b93a1; margin: 6px 0; font-size: 14px; }
+  .blk.on { background: #d64545; }
+</style>
+</head>
+<body>
+<div id="pinbox"><h1>Controller PIN</h1><input id="pin" type="tel" inputmode="numeric" autocomplete="off"><button class="go big" id="pinok">Unlock</button><div id="pinerr" class="red"></div></div>
+<div id="disp"><div id="title">—</div><div id="digits">--:--</div><div id="meta"><span id="st"></span><span id="next"></span><span id="off"></span></div></div>
+<div class="grid g2"><button class="go big" id="toggle">Start</button><button class="big" id="reset">Reset</button></div>
+<div class="grid g2"><button id="prev">◀ Previous</button><button id="nextb">Next ▶</button></div>
+<div class="grid g4"><button data-add="-300">−5m</button><button data-add="-60">−1m</button><button data-add="60">+1m</button><button data-add="300">+5m</button></div>
+<div class="line"><input id="custom" type="text" inputmode="decimal" placeholder="Custom m:ss"><button id="cminus">−</button><button id="cplus">+</button></div>
+
+<h2>Message to stage</h2>
+<div class="line"><input id="msg" type="text" placeholder="Type a message…" autocomplete="off"><button class="go" id="send">Send</button></div>
+<div class="line"><label class="c"><input type="checkbox" id="bold" checked> Bold</label><label class="c"><input type="checkbox" id="flash"> Flash</label><span style="flex:1"></span><button class="warn" id="clear">Clear message</button></div>
+<div id="onstage"></div>
+<div class="chips" id="presets"></div>
+<div class="grid"><button class="blk" id="blackout">Blackout timer screens</button></div>
+
+<h2>Rundown <small>(tap to select, then Start)</small></h2>
+<div id="list"></div>
+
+<details><summary>Cue list controls</summary>
+  <div id="cueinfo"></div>
+  <div class="grid g3"><button class="go big" id="go">GO</button><button id="cprev">▲ Prev</button><button id="cnext">▼ Next</button></div>
+  <div class="grid g2"><button class="warn" id="stopall">Stop all (fade)</button><button id="playpause">Play / pause video</button></div>
+</details>
+<script src="/common.js"></script>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const parse = (v) => { const parts = String(v).trim().split(':').map(Number); let s = 0; for (const p of parts) s = s * 60 + (p || 0); return parts.length === 1 ? s * 60 : s; }; // bare number = minutes
+  let presetsKey = '', listKey = '';
+  function askPin(err) { $('pinbox').style.display = 'flex'; $('pinerr').textContent = err || ''; $('pin').focus(); }
+  CS.onPinFail = () => askPin('Wrong PIN');
+  $('pinok').onclick = async () => {
+    const pin = $('pin').value.trim();
+    const r = await fetch('/api/auth?pin=' + encodeURIComponent(pin)).then((x) => x.json()).catch(() => ({ ok: false }));
+    if (r.ok) { CS.pin = pin; localStorage.setItem('cs-pin', pin); $('pinbox').style.display = 'none'; } else askPin('Wrong PIN');
+  };
+  $('pin').onkeydown = (e) => { if (e.key === 'Enter') $('pinok').click(); };
+  function draw() {
+    const s = CS.state;
+    if (!s) return;
+    const t = s.timer, cur = t.current;
+    $('title').innerHTML = cur ? csEsc(cur.title) + (cur.speaker ? ` <small>· ${csEsc(cur.speaker)}</small>` : '') : 'No timer selected';
+    $('digits').textContent = cur ? csTimerText(t) : '--:--';
+    $('digits').className = cur ? csColour(t) : 'idle';
+    $('st').textContent = t.state.toUpperCase();
+    $('next').textContent = t.next ? 'Next: ' + t.next.title : '';
+    const off = t.offsetMs;
+    $('off').textContent = off === null ? '' : Math.abs(off) < 5000 ? 'On time' : `${csFmt(Math.abs(off))} ${off > 0 ? 'behind' : 'ahead'}`;
+    $('off').className = off > 30000 ? 'red' : off < -30000 ? 'green' : '';
+    $('toggle').textContent = t.running ? 'Pause' : 'Start';
+    $('toggle').className = (t.running ? 'warn' : 'go') + ' big';
+    $('blackout').className = 'blk' + (t.blackout ? ' on' : '');
+    $('blackout').textContent = t.blackout ? 'BLACKOUT ON — tap to restore' : 'Blackout timer screens';
+    $('onstage').style.display = t.message.text ? 'block' : 'none';
+    $('onstage').innerHTML = 'On stage: <b>' + csEsc(t.message.text) + '</b>';
+    const pk = JSON.stringify(s.presets);
+    if (pk !== presetsKey) { presetsKey = pk; $('presets').innerHTML = s.presets.map((p, i) => `<button data-p="${i}">${csEsc(p)}</button>`).join(''); }
+    const lk = JSON.stringify(t.agenda.map((r) => [r.id, r.title, r.speaker, r.duration, r.mode, r.endAt, r.active]));
+    if (lk !== listKey) {
+      listKey = lk;
+      $('list').innerHTML = t.agenda.map((r, i) => `<div class="t ${r.active ? 'active' : ''}" data-id="${r.id}"><span class="n">${i + 1}</span><span>${csEsc(r.title)}${r.speaker ? ` <small>· ${csEsc(r.speaker)}</small>` : ''}</span><span>${r.mode === 'clock' ? 'Clock' : r.mode === 'until' ? '→ ' + csEsc(r.endAt) : csDur(r.duration)}</span></div>`).join('') || '<div class="t"><span></span><span>No timers in this show</span><span></span></div>';
+    }
+    const c = s.cue;
+    $('cueinfo').innerHTML = `Live: <b>${c.live ? csEsc(c.live.number + ' ' + c.live.name) + ' (' + c.live.state + ')' : '—'}</b><br>Standby: <b>${c.standby ? csEsc(c.standby.number + ' ' + c.standby.name) : '—'}</b>`;
+    if (s.pinRequired && !CS.pin && $('pinbox').style.display !== 'flex') askPin();
+  }
+  CS.on(draw); setInterval(draw, 200); CS.connect();
+  const opts = () => ({ flash: $('flash').checked, bold: $('bold').checked });
+  $('toggle').onclick = () => CS.send('timer.toggle');
+  $('reset').onclick = () => CS.send('timer.reset');
+  $('prev').onclick = () => CS.send('timer.prev');
+  $('nextb').onclick = () => CS.send('timer.next');
+  document.querySelectorAll('[data-add]').forEach((b) => { b.onclick = () => CS.send('timer.add', { seconds: +b.dataset.add }); });
+  $('cplus').onclick = () => { const s = parse($('custom').value); if (s) CS.send('timer.add', { seconds: s }); };
+  $('cminus').onclick = () => { const s = parse($('custom').value); if (s) CS.send('timer.add', { seconds: -s }); };
+  $('send').onclick = () => { if ($('msg').value.trim()) CS.send('message.send', { text: $('msg').value.trim(), ...opts() }); };
+  $('msg').onkeydown = (e) => { if (e.key === 'Enter') $('send').click(); };
+  $('clear').onclick = () => CS.send('message.clear');
+  $('presets').onclick = (e) => { const i = e.target.dataset.p; if (i !== undefined) CS.send('message.send', { text: CS.state.presets[i], ...opts() }); };
+  $('blackout').onclick = () => CS.send('blackout', { on: 'toggle' });
+  $('list').onclick = (e) => { const row = e.target.closest('.t'); if (row && row.dataset.id) CS.send('timer.select', { id: row.dataset.id }); };
+  $('go').onclick = () => CS.send('go'); $('cprev').onclick = () => CS.send('prev'); $('cnext').onclick = () => CS.send('next');
+  $('stopall').onclick = () => CS.send('stop'); $('playpause').onclick = () => CS.send('transport.toggle');
+</script>
+</body>
+</html>

@@ -110,6 +110,7 @@ class WebServer {
       const parts = p.split('/').slice(2);
       if (parts[0] === 'state') return send(200, this.getState());
       if (parts[0] === 'companion') return send(200, this.getState().companion);
+      if (parts[0] === 'debug' && this.debug) return void this.debug().then((r) => send(200, r)).catch((e) => send(500, { error: e.message }));
       if (parts[0] === 'auth') return send(200, { ok: this.pinOk(q.pin), pinRequired: !!this.getPin() });
       const finish = (extra = {}) => {
         const merged = { ...q, ...extra };
